@@ -33,15 +33,32 @@ if (!process.env.ADMIN_IDS) {
 // ─── Launch bot ────────────────────────────────────────────────────────────
 console.log('🤖 Memulai WA ACC Bot...');
 
-bot.launch({
-  allowedUpdates: ['message', 'callback_query'],
-}).then(() => {
-  console.log('✅ Bot Telegram berhasil dijalankan!');
-  console.log(`👤 Admin IDs: ${process.env.ADMIN_IDS}`);
-}).catch((err) => {
-  console.error('❌ Gagal menjalankan bot:', err.message);
+async function startBot(retries = 3) {
+  for (let i = 0; i < retries; i++) {
+    try {
+      await bot.telegram.deleteWebhook({ drop_pending_updates: true });
+      await bot.launch({
+        allowedUpdates: ['message', 'callback_query'],
+        dropPendingUpdates: true,
+      });
+      console.log('✅ Bot Telegram berhasil dijalankan!');
+      console.log(`👤 Admin IDs: ${process.env.ADMIN_IDS}`);
+      return;
+    } catch (err) {
+      if (err.message && err.message.includes('409')) {
+        console.log(`⚠️ Conflict 409 terdeteksi (instance lain berjalan). Retry ${i + 1}/${retries} dalam 5 detik...`);
+        await new Promise((r) => setTimeout(r, 5000));
+      } else {
+        console.error('❌ Gagal menjalankan bot:', err.message);
+        process.exit(1);
+      }
+    }
+  }
+  console.error('❌ Gagal menjalankan bot setelah beberapa retry. Keluar...');
   process.exit(1);
-});
+}
+
+startBot();
 
 // ─── Graceful shutdown ─────────────────────────────────────────────────────
 process.once('SIGINT', () => {
